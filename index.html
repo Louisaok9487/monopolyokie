@@ -34,8 +34,7 @@
             background-color: #2a4365;
             border: 1px solid #4a5568;
             color: #e2e8f0;
-            display: flex;
-            flex-direction: column;
+            display: flex; /* Use flexbox for layout */
             text-align: center;
             font-size: 0.6rem;
             line-height: 1.2;
@@ -56,8 +55,6 @@
             font-weight: bold;
         }
         .color-bar {
-            height: 16px;
-            border-bottom: 1px solid #4a5568;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -72,6 +69,37 @@
             font-size: 2rem;
             line-height: 1;
         }
+
+        /* Default layout for top/bottom properties */
+        .property-card:not(.side-property), .special-card:not(.side-property) {
+            flex-direction: column;
+        }
+        .property-card:not(.side-property) .color-bar {
+            height: 16px;
+            border-bottom: 1px solid #4a5568;
+        }
+
+        /* Styles for side properties (left and right) */
+        .side-property {
+            align-items: stretch; /* Make children fill height */
+        }
+        .side-property.left-side {
+            flex-direction: row;
+        }
+        .side-property.right-side {
+            flex-direction: row-reverse;
+        }
+        .side-property .color-bar {
+            width: 16px; /* Vertical color bar */
+            height: auto;
+        }
+        .side-property.left-side .color-bar {
+            border-right: 1px solid #4a5568;
+        }
+        .side-property.right-side .color-bar {
+            border-left: 1px solid #4a5568;
+        }
+
         /* Player token styling */
         .player-token {
             position: absolute;
@@ -271,6 +299,12 @@
 
 
     <script>
+        // --- UTILITY FUNCTIONS ---
+        // Formats a number into a currency string with thousand separators and a "K" suffix.
+        function formatMoney(amount) {
+            return `$${amount.toLocaleString('en-US')}K`;
+        }
+        
         // --- AUDIO ENGINE using Tone.js ---
         let audioReady = false;
         let sfx;
@@ -359,25 +393,25 @@
         ];
         
         const chanceCards = [
-            { text: "前進到「起點」(領取 $200)", action: (p) => { p.position = 0; updatePlayerMoney(p, 200, false); p.passedGoOnCard = true; } },
-            { text: "銀行支付你股息 $50", action: (p) => { updatePlayerMoney(p, 50, false); } },
+            { text: "前進到「起點」(領取 $200K)", action: (p) => { p.position = 0; collectGoSalary(p); } },
+            { text: "銀行支付你股息 $50K", action: (p) => { updatePlayerMoney(p, 50, false); } },
             { text: "去搭船回本島休息。直接前往。", action: (p) => { goToJail(p); } },
-            { text: "騎車超速罰款 $15", action: (p) => { updatePlayerMoney(p, -15, true); } },
-            { text: "中了潮間帶生態導覽的獎，獲得 $100", action: (p) => { updatePlayerMoney(p, 100, false); } },
+            { text: "騎車超速罰款 $15K", action: (p) => { updatePlayerMoney(p, -15, true); } },
+            { text: "中了潮間帶生態導覽的獎，獲得 $100K", action: (p) => { updatePlayerMoney(p, 100, false); } },
             { text: "後退 3 格。", action: (p) => { p.position = (p.position - 3 + boardSpaces.length) % boardSpaces.length; } },
-            { text: "前進到「多仔坪」。如果經過起點，領取 $200", action: (p) => { advanceTo(p, '多仔坪'); } },
-            { text: "整修你所有的地產。每棟房子支付 $25，每間旅館支付 $100。", action: (p) => { generalRepairs(p, 25, 100); } },
+            { text: "前進到「多仔坪」。如果經過起點，領取 $200K", action: (p) => { advanceTo(p, '多仔坪'); } },
+            { text: "整修你所有的地產。每棟房子支付 $25K，每間旅館支付 $100K。", action: (p) => { generalRepairs(p, 25, 100); } },
             { text: "前往最近的港口。", action: (p) => { advanceToNearest(p, 'station'); } },
             { text: "獲得一張「免休息」卡。", action: (p) => { p.getOutOfJailFreeCards = (p.getOutOfJailFreeCards || 0) + 1; } },
-            { text: "前進到「小琉球迎王」。", action: (p) => { p.position = 39; } },
-            { text: "你的麻花捲生意大好。獲得 $150。", action: (p) => { updatePlayerMoney(p, 150, false); } }
+            { text: "前進到「小琉球迎王」。", action: (p) => { advanceTo(p, '小琉球迎王'); } },
+            { text: "你的麻花捲生意大好。獲得 $150K。", action: (p) => { updatePlayerMoney(p, 150, false); } }
         ];
 
         const opportunityCards = [
-            { text: "銀行算錯帳了。獲得 $200", action: (p) => { updatePlayerMoney(p, 200, false); } },
-            { text: "被海膽刺到。支付醫藥費 $50", action: (p) => { updatePlayerMoney(p, -50, true); } },
-            { text: "你的民宿客滿。獲得 $50", action: (p) => { updatePlayerMoney(p, 50, false); } },
-            { text: "你生日。每位玩家給你 $10", action: (p, allPlayers) => {
+            { text: "銀行算錯帳了。獲得 $200K", action: (p) => { updatePlayerMoney(p, 200, false); } },
+            { text: "被海膽刺到。支付醫藥費 $50K", action: (p) => { updatePlayerMoney(p, -50, true); } },
+            { text: "你的民宿客滿。獲得 $50K", action: (p) => { updatePlayerMoney(p, 50, false); } },
+            { text: "你生日。每位玩家給你 $10K", action: (p, allPlayers) => {
                 let collected = 0;
                 allPlayers.filter(ap => !ap.isBankrupt && ap.id !== p.id).forEach(otherPlayer => {
                     updatePlayerMoney(otherPlayer, -10, false);
@@ -385,14 +419,14 @@
                 });
                 updatePlayerMoney(p, collected, false);
             }},
-            { text: "遇見海龜，運氣大好。獲得 $20。", action: (p) => { updatePlayerMoney(p, 20, false); } },
-            { text: "保險到期。獲得 $100。", action: (p) => { updatePlayerMoney(p, 100, false); } },
-            { text: "捐獻給當地廟宇。支付 $100。", action: (p) => { updatePlayerMoney(p, -100, true); } },
-            { text: "支付浮潛課程費用 $50。", action: (p) => { updatePlayerMoney(p, -50, true); } },
-            { text: "刮刮樂中了！獲得 $100。", action: (p) => { updatePlayerMoney(p, 100, false); } },
-            { text: "繼承一筆遺產 $100。", action: (p) => { updatePlayerMoney(p, 100, false); } },
-            { text: "支付 $10 罰款或抽一張命運卡。", action: (p) => { payOrTakeChance(p, 10); } },
-            { text: "前進到「起點」(領取 $200)", action: (p) => { p.position = 0; updatePlayerMoney(p, 200, false); p.passedGoOnCard = true; } }
+            { text: "遇見海龜，運氣大好。獲得 $20K。", action: (p) => { updatePlayerMoney(p, 20, false); } },
+            { text: "保險到期。獲得 $100K。", action: (p) => { updatePlayerMoney(p, 100, false); } },
+            { text: "捐獻給當地廟宇。支付 $100K。", action: (p) => { updatePlayerMoney(p, -100, true); } },
+            { text: "支付浮潛課程費用 $50K。", action: (p) => { updatePlayerMoney(p, -50, true); } },
+            { text: "刮刮樂中了！獲得 $100K。", action: (p) => { updatePlayerMoney(p, 100, false); } },
+            { text: "繼承一筆遺產 $100K。", action: (p) => { updatePlayerMoney(p, 100, false); } },
+            { text: "支付 $10K 罰款或抽一張命運卡。", action: (p) => { payOrTakeChance(p, 10); } },
+            { text: "前進到「起點」(領取 $200K)", action: (p) => { p.position = 0; collectGoSalary(p); } }
         ];
 
         // --- GAME STATE VARIABLES ---
@@ -532,10 +566,10 @@
                 const playerNames = [playerName, '周董 (AI)', '蔡同學 (AI)', '張惠妹 (AI)'];
                 const playerColors = ['#e53e3e', '#4299e1', '#48bb78', '#ecc94b'];
                 
-                players.push({ id: 0, name: playerNames[0], isAI: false, money: startMoney, position: 0, properties: [], inJail: false, jailTurns: 0, token: playerEmoji, color: playerColors[0], isBankrupt: false, getOutOfJailFreeCards: 0, passedGoOnCard: false });
+                players.push({ id: 0, name: playerNames[0], isAI: false, money: startMoney, position: 0, properties: [], inJail: false, jailTurns: 0, token: playerEmoji, color: playerColors[0], isBankrupt: false, getOutOfJailFreeCards: 0, goSalaryCollectedThisTurn: false });
                 
                 for (let i = 0; i < aiCount; i++) {
-                    players.push({ id: i + 1, name: playerNames[i + 1], isAI: true, money: 1500, position: 0, properties: [], inJail: false, jailTurns: 0, token: aiEmojis[i], color: playerColors[i+1], isBankrupt: false, getOutOfJailFreeCards: 0, passedGoOnCard: false });
+                    players.push({ id: i + 1, name: playerNames[i + 1], isAI: true, money: 1500, position: 0, properties: [], inJail: false, jailTurns: 0, token: aiEmojis[i], color: playerColors[i+1], isBankrupt: false, getOutOfJailFreeCards: 0, goSalaryCollectedThisTurn: false });
                 }
             }
 
@@ -551,25 +585,39 @@
         }
         window.startGame = startGame;
 
-        // Creates the game board elements
+        // Creates the game board elements and adds classes for side properties
         function createBoard() {
             const centerConsole = document.getElementById('center-console').parentNode.removeChild(document.getElementById('center-console'));
             gameBoard.innerHTML = '';
             boardSpaces.forEach((space, i) => {
                 const spaceEl = document.createElement('div');
                 spaceEl.id = `space-${i}`;
-                spaceEl.className = 'rounded-md';
+                
+                const isLeftSide = i >= 11 && i <= 19;
+                const isRightSide = i >= 31 && i <= 39;
+                
+                let classList = ['rounded-md'];
+
                 if (space.type === "property") {
-                    spaceEl.classList.add('property-card');
+                    classList.push('property-card');
+                    if (isLeftSide) classList.push('side-property', 'left-side');
+                    if (isRightSide) classList.push('side-property', 'right-side');
+                    
+                    spaceEl.className = classList.join(' ');
                     spaceEl.innerHTML = `
                         <div class="color-bar" style="background-color: ${space.color};"></div>
                         <div class="name">${space.name}</div>
-                        <div class="price">$${space.price}</div>`;
+                        <div class="price">${formatMoney(space.price)}</div>`;
                 } else if (space.type === 'go' || space.type === 'jail' || space.type === 'parking' || space.type === 'go-to-jail') {
-                    spaceEl.classList.add('corner');
+                    classList.push('corner');
+                    spaceEl.className = classList.join(' ');
                     spaceEl.innerHTML = `<div>${space.name}</div><div class="emoji">${space.emoji}</div>`;
                 } else {
-                    spaceEl.classList.add('special-card');
+                    classList.push('special-card');
+                    if (isLeftSide) classList.push('side-property', 'left-side');
+                    if (isRightSide) classList.push('side-property', 'right-side');
+
+                    spaceEl.className = classList.join(' ');
                     spaceEl.innerHTML = `<div class="name">${space.name}</div><div class="emoji">${space.emoji || ''}</div>`;
                 }
                 gameBoard.appendChild(spaceEl);
@@ -593,6 +641,7 @@
         async function startTurn() {
             if (!gameActive) return;
             const currentPlayer = players[currentPlayerIndex];
+            currentPlayer.goSalaryCollectedThisTurn = false; // Reset GO salary flag
             turnIndicator.textContent = `輪到 ${currentPlayer.name}`;
             document.querySelectorAll('.player-info-card').forEach(card => card.classList.remove('ring-2', 'ring-blue-400'));
             const currentPlayerCard = document.getElementById(`player-info-${currentPlayer.id}`);
@@ -681,9 +730,9 @@
                 player.position = (player.position + 1) % boardSpaces.length;
                 updatePlayerTokenPosition(player);
 
-                if (player.position === 0 && stepsTaken < steps && !player.passedGoOnCard) {
-                    updatePlayerMoney(player, 200, false);
-                    showAutoModal("經過起點", `${player.name} 領取了 $200。`, 1200, () => {
+                if (player.position === 0 && stepsTaken < steps) {
+                    collectGoSalary(player);
+                    showAutoModal("經過起點", `${player.name} 領取了 ${formatMoney(200)}。`, 1200, () => {
                          const hopInterval = Math.max(20, BASE_MOVE_DELAY / gameSpeed);
                          setTimeout(moveOneStep, hopInterval);
                     });
@@ -692,7 +741,6 @@
                     setTimeout(moveOneStep, hopInterval);
                 }
             }
-            player.passedGoOnCard = false;
             moveOneStep();
         }
 
@@ -703,8 +751,8 @@
             const owner = getPropertyOwner(space);
 
             if (space.type === "go") {
-                updatePlayerMoney(player, 200, false);
-                showAutoModal("抵達起點", `${player.name} 領取了 $200。`, 1200, nextTurn);
+                collectGoSalary(player);
+                showAutoModal("抵達起點", `${player.name} 領取了 ${formatMoney(200)}。`, 1200, nextTurn);
                 return;
             }
 
@@ -724,7 +772,7 @@
                     break;
                 case "tax":
                     playSound('rent');
-                    showAutoModal("繳稅", `${player.name} 支付了 $${space.amount}。`, 1200, () => {
+                    showAutoModal("繳稅", `${player.name} 支付了 ${formatMoney(space.amount)}。`, 1200, () => {
                         updatePlayerMoney(player, -space.amount, true);
                         if(!player.isBankrupt) nextTurn();
                     });
@@ -739,6 +787,13 @@
         }
         
         // --- PROPERTY & MONEY ---
+        function collectGoSalary(player) {
+            if (!player.goSalaryCollectedThisTurn) {
+                updatePlayerMoney(player, 200, false);
+                player.goSalaryCollectedThisTurn = true;
+            }
+        }
+
         function updatePlayerMoney(player, amount, canGoBankrupt) {
             if (amount > 0) { playSound('cash'); } else if (amount < 0) { playSound('rent'); }
             player.money += amount;
@@ -768,12 +823,12 @@
 
                 if (player.money - space.price > buyThreshold || Math.random() < 0.85) {
                     buyProperty(player, space);
-                    showAutoModal("AI 購買", `${player.name} 花了 $${space.price} 買下 ${space.name}。`, 1200, nextTurn);
+                    showAutoModal("AI 購買", `${player.name} 花了 ${formatMoney(space.price)} 買下 ${space.name}。`, 1200, nextTurn);
                 } else {
                     showAutoModal("AI 放棄", `${player.name} 決定不購買 ${space.name}。`, 1200, nextTurn);
                 }
             } else {
-                showModal("購買地產", `您想用 $${space.price} 購買 ${space.name} 嗎？`, [
+                showModal("購買地產", `您想用 ${formatMoney(space.price)} 購買 ${space.name} 嗎？`, [
                     { text: "購買", className: 'bg-green-600', action: () => { buyProperty(player, space); nextTurn(); } },
                     { text: "放棄", className: 'bg-red-600', action: nextTurn }
                 ]);
@@ -800,7 +855,7 @@
                 rent = ownedProperty.rent * Math.pow(2, owner.properties.filter(p => p.type === 'station').length - 1);
             }
             
-            const message = `${player.name} 支付了 $${rent} 租金給 ${owner.name}（${space.name}）。`;
+            const message = `${player.name} 支付了 ${formatMoney(rent)} 租金給 ${owner.name}（${space.name}）。`;
             showAutoModal("支付租金", message, 1200, () => {
                 updatePlayerMoney(player, -rent, true);
                 if (!player.isBankrupt) { updatePlayerMoney(owner, rent, false); nextTurn(); }
@@ -840,7 +895,7 @@
             if (player.money < 0) {
                 handleBankruptcy(player);
             } else {
-                showAutoModal("還清債務！", `${player.name} 變賣資產籌得 $${raised}，避免了破產！`, 1500, nextTurn);
+                showAutoModal("還清債務！", `${player.name} 變賣資產籌得 ${formatMoney(raised)}，避免了破產！`, 1500, nextTurn);
             }
         }
 
@@ -922,7 +977,7 @@
                         }
                         
                         if (player.money >= offerPrice) {
-                             showAutoModal("AI 交易提案", `${player.name} 向 ${owner.name} 出價 $${offerPrice} 購買 ${targetProperty.name}。`, 1500, null, { modalType: 'trade' });
+                             showAutoModal("AI 交易提案", `${player.name} 向 ${owner.name} 出價 ${formatMoney(offerPrice)} 購買 ${targetProperty.name}。`, 1500, null, { modalType: 'trade' });
                              await sleep(1500);
 
                              let ownerAccepts = false;
@@ -945,7 +1000,7 @@
 
                              if (ownerAccepts) {
                                  executeTrade(player, owner, targetProperty, offerPrice);
-                                 showAutoModal("交易成功！", `${owner.name} 將 ${targetProperty.name} 以 $${offerPrice} 賣給了 ${player.name}。`, 1500, null, { modalType: 'trade' });
+                                 showAutoModal("交易成功！", `${owner.name} 將 ${targetProperty.name} 以 ${formatMoney(offerPrice)} 賣給了 ${player.name}。`, 1500, null, { modalType: 'trade' });
                                  await sleep(1500);
                                  return;
                              } else {
@@ -976,11 +1031,11 @@
                     let rentInfo = '';
                     if (p.type === 'property') {
                         let currentRent = p.houses > 0 ? p.rentWithHouses[p.houses - 1] : (hasFullSet(player, p.group) ? p.rent * 2 : p.rent);
-                        rentInfo = `<span class="text-green-400 ml-auto">$${currentRent}</span>`;
+                        rentInfo = `<span class="text-green-400 ml-auto">${formatMoney(currentRent)}</span>`;
                     } else if (p.type === 'station') {
                         const numStations = player.properties.filter(prop => prop.type === 'station').length;
                         const currentRent = p.rent * Math.pow(2, numStations - 1);
-                        rentInfo = `<span class="text-green-400 ml-auto">$${currentRent}</span>`;
+                        rentInfo = `<span class="text-green-400 ml-auto">${formatMoney(currentRent)}</span>`;
                     }
                     const tradeableClass = (!players[0].isAI && player.isAI && difficultyLevel !== 'easy') ? 'tradeable-property' : '';
                     return `<li class="flex items-center text-sm p-1 rounded-md ${tradeableClass}" data-owner-id="${player.id}" data-prop-name="${p.name}">
@@ -995,7 +1050,7 @@
                            <div class="w-4 h-4 rounded-full mr-2" style="background-color: ${player.color}"></div>
                            <h3 class="text-lg font-bold ${player.isBankrupt ? 'line-through' : ''}">${player.token} ${player.name}</h3>
                         </div>
-                        <span class="text-xl font-semibold text-green-400">$${player.money}</span>
+                        <span class="text-xl font-semibold text-green-400">${formatMoney(player.money)}</span>
                     </div>
                     <div>
                         <div class="flex justify-between font-semibold text-gray-400"><span class="underline">持有資產</span><span class="underline">租金</span></div>
@@ -1135,12 +1190,12 @@
             const payToLeave = () => {
                 if (player.money >= 50) { updatePlayerMoney(player, -50, false); endJail(); }
                 else if (player.getOutOfJailFreeCards > 0) { player.getOutOfJailFreeCards--; endJail(); }
-                else { playSound('error'); showAutoModal("資金不足", "你沒有 $50 可以提早結束休息。", 1200, nextTurn); }
+                else { playSound('error'); showAutoModal("資金不足", `你沒有 ${formatMoney(50)} 可以提早結束休息。`, 1200, nextTurn); }
             };
-            if (player.jailTurns >= 3) { showAutoModal("休息結束", `${player.name} 必須支付 $50 或使用卡片。`, 1200, payToLeave); return; }
+            if (player.jailTurns >= 3) { showAutoModal("休息結束", `${player.name} 必須支付 ${formatMoney(50)} 或使用卡片。`, 1200, payToLeave); return; }
             
             const buttons = [{ text: "等待", className: 'bg-red-600', action: nextTurn }];
-            if (player.money >= 50) { buttons.unshift({ text: "支付 $50", className: 'bg-green-600', action: payToLeave }); }
+            if (player.money >= 50) { buttons.unshift({ text: `支付 ${formatMoney(50)}`, className: 'bg-green-600', action: payToLeave }); }
             if (player.getOutOfJailFreeCards > 0) { buttons.unshift({ text: "使用卡片", className: 'bg-yellow-500', action: () => { player.getOutOfJailFreeCards--; endJail(); }}); }
 
             if (player.isAI) {
@@ -1152,20 +1207,26 @@
 
         function drawCard(player, cardDeck, type) {
             const card = cardDeck[Math.floor(Math.random() * cardDeck.length)];
-            let displayText = card.text.replace(/\$(\d+)/g, (match) => {
-                if (card.text.includes("獲得") || card.text.includes("領取") || card.text.includes("中了")) {
-                    return `<span class="font-bold text-green-400">${match}</span>`;
+            let displayText = card.text.replace(/\$(\d+)K/g, (match, amount) => {
+                const formattedAmount = formatMoney(parseInt(amount));
+                if (card.text.includes("獲得") || card.text.includes("領取") || card.text.includes("中了") || card.text.includes("股息")) {
+                    return `<span class="font-bold text-green-400">${formattedAmount}</span>`;
                 } else if (card.text.includes("支付") || card.text.includes("罰款") || card.text.includes("費用")) {
-                    return `<span class="font-bold text-red-400">${match}</span>`;
+                    return `<span class="font-bold text-red-400">${formattedAmount}</span>`;
                 }
-                return match;
+                return formattedAmount;
             });
             const cardAction = () => {
                 const originalPosition = player.position;
                 card.action(player, players);
                 if (player.isBankrupt) return;
-                if (player.position !== originalPosition) { setTimeout(handleLandedSpace, 200 / gameSpeed); } 
-                else { nextTurn(); }
+                // If player was moved by card, handle the new space after a delay
+                if (player.position !== originalPosition) { 
+                    setTimeout(handleLandedSpace, 200 / gameSpeed); 
+                } 
+                else { 
+                    nextTurn(); 
+                }
             };
             showAutoModal(type, displayText, 2000, cardAction);
         }
@@ -1193,8 +1254,8 @@
                     group.forEach(p => { bodyContent += `<div class="flex justify-between items-center text-sm"><span>${p.name}</span><span>${p.houses === 5 ? '🏨' : '🏠'.repeat(p.houses)}</span></div>`; });
                     
                     bodyContent += '<div class="flex space-x-2 mt-2">';
-                    if (!isMaxed) { bodyContent += `<button ${canAfford ? '' : 'disabled'} onclick="buildHouse('${groupName}')" class="flex-1 py-2 px-4 rounded text-white font-semibold ${canAfford ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 cursor-not-allowed'}">建造 ($${houseCost})</button>`; }
-                    if(hasHouses) { bodyContent += `<button onclick="sellHouse('${groupName}')" class="flex-1 py-2 px-4 rounded text-white font-semibold bg-yellow-500 hover:bg-yellow-600">販售 ($${houseCost/2})</button>`; }
+                    if (!isMaxed) { bodyContent += `<button ${canAfford ? '' : 'disabled'} onclick="buildHouse('${groupName}')" class="flex-1 py-2 px-4 rounded text-white font-semibold ${canAfford ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 cursor-not-allowed'}">建造 (${formatMoney(houseCost)})</button>`; }
+                    if(hasHouses) { bodyContent += `<button onclick="sellHouse('${groupName}')" class="flex-1 py-2 px-4 rounded text-white font-semibold bg-yellow-500 hover:bg-yellow-600">販售 (${formatMoney(houseCost/2)})</button>`; }
                     bodyContent += '</div></div>';
                 }
             }
@@ -1206,7 +1267,7 @@
                     const sellPrice = Math.floor(p.price / 2);
                     const groupHasHouses = p.group && propertiesByGroup[p.group] && propertiesByGroup[p.group].some(prop => prop.houses > 0);
                     const canSell = !groupHasHouses;
-                    bodyContent += `<div class="flex justify-between items-center p-2 rounded-md hover:bg-gray-700"><span>${p.name}</span><button ${canSell ? '' : 'disabled'} onclick="sellProperty('${p.name}')" class="py-1 px-3 rounded text-white font-semibold ${canSell ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-600 cursor-not-allowed'}" title="${canSell ? '' : '請先販售此區域的所有房屋'}">販售 $${sellPrice}</button></div>`;
+                    bodyContent += `<div class="flex justify-between items-center p-2 rounded-md hover:bg-gray-700"><span>${p.name}</span><button ${canSell ? '' : 'disabled'} onclick="sellProperty('${p.name}')" class="py-1 px-3 rounded text-white font-semibold ${canSell ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-600 cursor-not-allowed'}" title="${canSell ? '' : '請先販售此區域的所有房屋'}">販售 ${formatMoney(sellPrice)}</button></div>`;
                 });
             } else { bodyContent += "<p>你沒有任何地產可以販售。</p>"; }
             bodyContent += '</div>';
@@ -1247,7 +1308,7 @@
             if (!property) return;
 
             const sellPrice = Math.floor(property.price / 2);
-            const body = `你確定要以 <span class="text-green-400">$${sellPrice}</span> 的價格販售 <b>${propertyName}</b> 嗎？`;
+            const body = `你確定要以 <span class="text-green-400">${formatMoney(sellPrice)}</span> 的價格販售 <b>${propertyName}</b> 嗎？`;
             
             showModal("確認販售", body, [
                 { text: "確認", className: 'bg-red-600', action: () => confirmSellProperty(propertyName) },
@@ -1273,7 +1334,7 @@
             const animEl = document.createElement('div');
             animEl.className = 'money-animation';
             const plus = amount > 0 ? '+' : '';
-            animEl.textContent = `${plus}$${amount}`;
+            animEl.textContent = `${plus}${formatMoney(amount)}`;
             animEl.style.color = amount > 0 ? '#48bb78' : '#e53e3e';
             const cardRect = playerCard.getBoundingClientRect();
             const containerRect = gameContainer.getBoundingClientRect();
@@ -1334,18 +1395,22 @@
                 const canAfford = humanPlayer.money >= offer;
                 const tradeBody = `
                     <p class="mb-4">${reason}</p>
-                    <p class="text-2xl font-bold">AI 開價: <span class="text-yellow-400">$${offer}</span> (${propertyToBuy.name})</p>
-                    <p class="mt-2 text-sm text-gray-400">你的餘額: $${humanPlayer.money}</p>
+                    <p class="text-2xl font-bold">AI 開價: <span class="text-yellow-400">${formatMoney(offer)}</span> (${propertyToBuy.name})</p>
+                    <p class="mt-2 text-sm text-gray-400">你的餘額: ${formatMoney(humanPlayer.money)}</p>
                     <div class="mt-4">
                         <label for="counter-offer" class="block text-lg mb-2">你的還價:</label>
-                        <input type="number" id="counter-offer" value="${offer}" min="${Math.floor(propertyToBuy.price * 0.5)}" max="${Math.floor(propertyToBuy.price * 5)}" class="text-black text-center p-2 rounded-md w-full max-w-xs border border-gray-600 bg-gray-200">
+                        <div class="flex items-center justify-center">
+                            <input type="number" id="counter-offer" value="${offer}" min="${Math.floor(propertyToBuy.price * 0.5)}" max="${Math.floor(propertyToBuy.price * 5)}" class="text-black text-center p-2 rounded-md w-full max-w-xs border border-gray-600 bg-gray-200">
+                            <span class="text-xl font-bold ml-2">K</span>
+                        </div>
                     </div>
                     ${!canAfford ? '<p class="text-red-400 mt-2">你無法負擔AI的開價。</p>' : ''}`;
                 
                 showModal("交易提案", tradeBody, [
                     { text: "接受AI開價", className: canAfford ? 'bg-green-600' : 'bg-gray-600 cursor-not-allowed', action: canAfford ? () => executeTrade(humanPlayer, aiPlayer, propertyToBuy, offer) : () => {} },
                     { text: "提出還價", className: 'bg-blue-600', action: () => {
-                        const counter = parseInt(document.getElementById('counter-offer').value);
+                        const counterInput = document.getElementById('counter-offer').value;
+                        const counter = parseInt(counterInput);
                         if (isNaN(counter) || counter <= 0) {
                             playSound('error');
                             showAutoModal("無效的出價", "請輸入一個有效的數字。", 1200, () => showTradeModal(offer));
@@ -1398,7 +1463,7 @@
             }
 
             if (aiAccepts) {
-                showAutoModal("還價被接受！", `${aiPlayer.name} 接受了你對 ${propertyToBuy.name} 的 $${counterOffer} 出價。`, 1500, () => executeTrade(humanPlayer, aiPlayer, propertyToBuy, counterOffer));
+                showAutoModal("還價被接受！", `${aiPlayer.name} 接受了你對 ${propertyToBuy.name} 的 ${formatMoney(counterOffer)} 出價。`, 1500, () => executeTrade(humanPlayer, aiPlayer, propertyToBuy, counterOffer));
             } else {
                 showAutoModal("還價被拒絕", `${aiPlayer.name} 拒絕了你的出價。${aiReason}`, 1500, () => modal.classList.add('hidden'));
             }
@@ -1408,7 +1473,9 @@
         function advanceTo(player, locationName) {
             const currentPos = player.position;
             const targetPos = boardSpaces.findIndex(s => s.name === locationName);
-            if (targetPos < currentPos) { updatePlayerMoney(player, 200, false); }
+            if (targetPos < currentPos) { 
+                collectGoSalary(player);
+            }
             player.position = targetPos;
         }
         function advanceToNearest(player, type) {
@@ -1418,7 +1485,9 @@
                 const checkPos = (currentPos + i) % boardSpaces.length;
                 if (boardSpaces[checkPos].type === type) { nearestPos = checkPos; break; }
             }
-            if (nearestPos < currentPos) { updatePlayerMoney(player, 200, false); }
+            if (nearestPos < currentPos) { 
+                collectGoSalary(player);
+            }
             player.position = nearestPos;
         }
         function generalRepairs(player, houseCost, hotelCost) {
@@ -1433,8 +1502,8 @@
                 if(player.money > 200) updatePlayerMoney(player, -amount, true);
                 else drawCard(player, chanceCards, '命運');
             } else {
-                showModal("選擇", `支付 $${amount} 罰款或抽一張命運卡？`, [
-                    {text: `支付 $${amount}`, className: 'bg-red-600', action: () => { updatePlayerMoney(player, -amount, true); nextTurn(); }},
+                showModal("選擇", `支付 ${formatMoney(amount)} 罰款或抽一張命運卡？`, [
+                    {text: `支付 ${formatMoney(amount)}`, className: 'bg-red-600', action: () => { updatePlayerMoney(player, -amount, true); nextTurn(); }},
                     {text: '抽命運卡', className: 'bg-yellow-500', action: () => { modal.classList.add('hidden'); playSound('card'); drawCard(player, chanceCards, '命運'); }}
                 ]);
             }
