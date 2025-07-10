@@ -146,6 +146,15 @@
         .dice { width: 50px; height: 50px; }
         .dot { display: block; width: 10px; height: 10px; border-radius: 50%; background-color: #2d3748; }
         .house-indicator { font-size: 10px; }
+        .boost-indicator {
+            position: absolute;
+            bottom: 0px;
+            left: 2px;
+            font-size: 24px;
+            line-height: 1;
+            text-shadow: 0 0 4px #000, 0 0 6px #000;
+            z-index: 12;
+        }
 
         /* Money animation for visual feedback */
         .money-animation {
@@ -458,6 +467,7 @@
 
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
+            localStorage.removeItem('liuQiuMonopolySave'); // Remove any old save data
             setupScreen = document.getElementById('setup-screen');
             // Show mode selection for small screens
             if (window.innerWidth < 768) {
@@ -465,7 +475,6 @@
             } else {
                 selectMode('desktop');
             }
-            checkSavedGame();
         });
 
         // Sets display mode (mobile/desktop) and shows setup screen
@@ -488,8 +497,8 @@
         }
         window.setAICountAndShowDifficulty = setAICountAndShowDifficulty;
 
-        // Starts the game, either new or from a saved state
-        async function startGame(aiCount, difficulty, savedGame = null) {
+        // Starts the game
+        async function startGame(aiCount, difficulty) {
             // Initialize audio on first user interaction
             if (!audioReady) {
                 await Tone.start();
@@ -542,35 +551,28 @@
                 }
             });
 
-            // Load saved game or create new players
-            if (savedGame) {
-                players = savedGame.players;
-                currentPlayerIndex = savedGame.currentPlayerIndex;
-                diceRollCount = savedGame.diceRollCount || 0;
-                difficultyLevel = savedGame.difficultyLevel || 'intermediate';
-            } else {
-                difficultyLevel = difficulty;
-                const playerName = document.getElementById('player-name').value || '玩家';
-                const playerEmoji = document.getElementById('emoji-selector').value;
-                
-                // Easter egg for starting money
-                let startMoney = 1500;
-                if (playerName === '$$$') {
-                    startMoney = 100000;
-                }
+            // Create new players
+            difficultyLevel = difficulty;
+            const playerName = document.getElementById('player-name').value || '玩家';
+            const playerEmoji = document.getElementById('emoji-selector').value;
+            
+            // Easter egg for starting money
+            let startMoney = 1500;
+            if (playerName === '$$$') {
+                startMoney = 100000;
+            }
 
-                let allEmojis = ["🐢", "🛵", "👡", "🤿", "⭐", "🛥️", "🤖", "👾", "👽"];
-                let aiEmojis = allEmojis.filter(e => e !== playerEmoji);
-                
-                players = [];
-                const playerNames = [playerName, '周董 (AI)', '蔡同學 (AI)', '張惠妹 (AI)'];
-                const playerColors = ['#e53e3e', '#4299e1', '#48bb78', '#ecc94b'];
-                
-                players.push({ id: 0, name: playerNames[0], isAI: false, money: startMoney, position: 0, properties: [], inJail: false, jailTurns: 0, token: playerEmoji, color: playerColors[0], isBankrupt: false, getOutOfJailFreeCards: 0, goSalaryCollectedThisTurn: false });
-                
-                for (let i = 0; i < aiCount; i++) {
-                    players.push({ id: i + 1, name: playerNames[i + 1], isAI: true, money: 1500, position: 0, properties: [], inJail: false, jailTurns: 0, token: aiEmojis[i], color: playerColors[i+1], isBankrupt: false, getOutOfJailFreeCards: 0, goSalaryCollectedThisTurn: false });
-                }
+            let allEmojis = ["🐢", "🛵", "👡", "🤿", "⭐", "🛥️", "🤖", "👾", "👽"];
+            let aiEmojis = allEmojis.filter(e => e !== playerEmoji);
+            
+            players = [];
+            const playerNames = [playerName, '周董 (AI)', '蔡同學 (AI)', '張惠妹 (AI)'];
+            const playerColors = ['#e53e3e', '#4299e1', '#48bb78', '#ecc94b'];
+            
+            players.push({ id: 0, name: playerNames[0], isAI: false, money: startMoney, position: 0, properties: [], inJail: false, jailTurns: 0, token: playerEmoji, color: playerColors[0], isBankrupt: false, getOutOfJailFreeCards: 0, goSalaryCollectedThisTurn: false });
+            
+            for (let i = 0; i < aiCount; i++) {
+                players.push({ id: i + 1, name: playerNames[i + 1], isAI: true, money: 1500, position: 0, properties: [], inJail: false, jailTurns: 0, token: aiEmojis[i], color: playerColors[i+1], isBankrupt: false, getOutOfJailFreeCards: 0, goSalaryCollectedThisTurn: false });
             }
 
             // Hide setup and show game
@@ -687,7 +689,6 @@
 
         function aiTurn() {
             diceRollCount++; 
-            saveGame();
             const d1 = Math.floor(Math.random() * 6) + 1;
             const d2 = Math.floor(Math.random() * 6) + 1;
             animateDice(d1, d2, () => movePlayer(d1 + d2));
@@ -757,9 +758,15 @@
             }
 
             if (space.type === "property" || space.type === "station" || space.type === "utility") {
-                if (!owner) promptBuyProperty(player, space);
-                else if (owner.id !== player.id) payRent(player, space, owner);
-                else nextTurn();
+                if (!owner) {
+                    promptBuyProperty(player, space);
+                } else if (owner.id !== player.id) {
+                    payRent(player, space, owner);
+                } else if (space.type === "property") { // NEW: Landed on own property
+                    promptRentBoost(player, space);
+                } else { // Landed on own station/utility
+                    nextTurn();
+                }
             } else {
                 handleSpecialSpace(player, space);
             }
@@ -837,7 +844,7 @@
 
         function buyProperty(player, space) {
             playSound('buy');
-            player.properties.push({...space, houses: 0});
+            player.properties.push({...space, houses: 0, rentBoosted: false}); // NEW: Initialize rentBoosted
             updatePlayerMoney(player, -space.price, true);
             if(player.isBankrupt) return;
             updateAllUI();
@@ -846,6 +853,7 @@
         function payRent(player, space, owner) {
             const ownedProperty = owner.properties.find(p => p.name === space.name);
             let rent = ownedProperty.rent;
+
             if (ownedProperty.type === 'property' && hasFullSet(owner, ownedProperty.group)) {
                 rent = ownedProperty.houses > 0 ? ownedProperty.rentWithHouses[ownedProperty.houses - 1] : ownedProperty.rent * 2;
             } else if (ownedProperty.type === 'utility') {
@@ -855,11 +863,67 @@
                 rent = ownedProperty.rent * Math.pow(2, owner.properties.filter(p => p.type === 'station').length - 1);
             }
             
-            const message = `${player.name} 支付了 ${formatMoney(rent)} 租金給 ${owner.name}（${space.name}）。`;
-            showAutoModal("支付租金", message, 1200, () => {
+            // NEW: Check for rent boost
+            const isBoosted = ownedProperty.rentBoosted;
+            if (isBoosted) {
+                rent *= 3;
+                ownedProperty.rentBoosted = false; // Effect is used up
+            }
+
+            const message = `${player.name} 支付了 ${formatMoney(rent)} ${isBoosted ? '<span class="text-yellow-400 font-bold">(租金x3!)</span>' : ''} 租金給 ${owner.name}（${space.name}）。`;
+            showAutoModal("支付租金", message, 1500, () => {
                 updatePlayerMoney(player, -rent, true);
-                if (!player.isBankrupt) { updatePlayerMoney(owner, rent, false); nextTurn(); }
+                if (!player.isBankrupt) { 
+                    updatePlayerMoney(owner, rent, false); 
+                }
+                updateAllUI(); // Update UI to remove star
+                nextTurn();
             });
+        }
+        
+        // --- NEW MECHANIC: RENT BOOST ---
+        function promptRentBoost(player, space) {
+            const ownedProperty = player.properties.find(p => p.name === space.name);
+            if (!ownedProperty || ownedProperty.rentBoosted) {
+                nextTurn();
+                return;
+            }
+
+            const boostCost = Math.floor(space.price * 0.1);
+            if (player.money < boostCost) {
+                nextTurn(); // Can't afford
+                return;
+            }
+
+            if (player.isAI) {
+                // AI decides whether to boost rent
+                if (player.money > boostCost * 5) { // Simple AI logic: boost if they have plenty of cash
+                    activateRentBoost(player, space, boostCost);
+                    showAutoModal("主場優勢！", `${player.name} 支付 ${formatMoney(boostCost)} 強化了 ${space.name}，下次租金x3！`, 1500, nextTurn);
+                } else {
+                    nextTurn();
+                }
+            } else {
+                // Human player is prompted
+                showModal(
+                    "主場優勢！",
+                    `您踩到了自己的地產 <b>${space.name}</b>。<br>您想支付 <span class="text-yellow-400 font-bold">${formatMoney(boostCost)}</span> (地價10%) 來使下一次租金變為三倍嗎？`,
+                    [
+                        { text: "啟用 (支付" + formatMoney(boostCost) + ")", className: 'bg-green-600', action: () => { activateRentBoost(player, space, boostCost); nextTurn(); } },
+                        { text: "不了", className: 'bg-red-600', action: nextTurn }
+                    ]
+                );
+            }
+        }
+
+        function activateRentBoost(player, space, cost) {
+            const property = player.properties.find(p => p.name === space.name);
+            if (property) {
+                property.rentBoosted = true;
+                updatePlayerMoney(player, -cost, false);
+                playSound('buy');
+                updateAllUI();
+            }
         }
         
         // --- BANKRUPTCY LOGIC ---
@@ -1040,7 +1104,7 @@
                     const tradeableClass = (!players[0].isAI && player.isAI && difficultyLevel !== 'easy') ? 'tradeable-property' : '';
                     return `<li class="flex items-center text-sm p-1 rounded-md ${tradeableClass}" data-owner-id="${player.id}" data-prop-name="${p.name}">
                         <span class="w-3 h-3 rounded-sm mr-2 flex-shrink-0" style="background-color:${p.color || '#808080'}; border: 1px solid #4a5568;"></span>
-                        ${p.name} ${rentInfo}
+                        ${p.name} ${p.rentBoosted ? '<span class="text-yellow-400 font-bold mx-1">★</span>' : ''} ${rentInfo}
                     </li>`;
                 }).join('');
 
@@ -1066,6 +1130,13 @@
                     const spaceEl = document.getElementById(`space-${i}`);
                     if (!spaceEl) return;
                     const owner = getPropertyOwner(space);
+                    
+                    // Clear previous indicators
+                    const existingOwnerIndicator = spaceEl.querySelector('.owner-indicator');
+                    if (existingOwnerIndicator) existingOwnerIndicator.remove();
+                    const existingBoostIndicator = spaceEl.querySelector('.boost-indicator');
+                    if (existingBoostIndicator) existingBoostIndicator.remove();
+
                     let colorBar = spaceEl.querySelector('.color-bar');
                     if (!colorBar && space.color) {
                          colorBar = document.createElement('div');
@@ -1074,18 +1145,31 @@
                          spaceEl.prepend(colorBar);
                     }
                     if(colorBar) colorBar.innerHTML = '';
-                    const existingIndicator = spaceEl.querySelector('.owner-indicator');
-                    if (existingIndicator) existingIndicator.remove();
+
                     if(owner) {
                         const ownedProperty = owner.properties.find(p => p.name === space.name);
+                        
+                        // Owner circle
                         const ownerIndicator = document.createElement('div');
                         ownerIndicator.className = `owner-indicator absolute top-1 right-1 w-5 h-5 rounded-full border-2 border-white`;
                         ownerIndicator.style.backgroundColor = owner.color;
                         ownerIndicator.title = `擁有者: ${owner.name}`;
                         spaceEl.appendChild(ownerIndicator);
+
+                        // Houses/Hotels
                         if(ownedProperty.type === 'property' && ownedProperty.houses > 0) {
                             let houseIcons = ownedProperty.houses === 5 ? '🏨' : '🏠'.repeat(ownedProperty.houses);
                             colorBar.innerHTML = `<span class="house-indicator">${houseIcons}</span>`;
+                        }
+
+                        // Rent Boost Star
+                        if (ownedProperty.rentBoosted) {
+                            const boostIndicator = document.createElement('div');
+                            boostIndicator.className = 'boost-indicator';
+                            boostIndicator.innerHTML = '★';
+                            boostIndicator.style.color = owner.color;
+                            boostIndicator.title = '租金x3效果啟用中！';
+                            spaceEl.appendChild(boostIndicator);
                         }
                     }
                 }
@@ -1125,7 +1209,6 @@
             gameActive = false;
             if (backgroundMusic) backgroundMusic.stop();
             if (activePlayers.length === 1 && !activePlayers[0].isAI) { triggerWin(); } else { triggerLose(); }
-            localStorage.removeItem('bangkokMonopolySave');
         }
         
         function animateDice(d1, d2, callback) {
@@ -1137,7 +1220,6 @@
                 if (++count > 10) { clearInterval(interval); drawDice(diceContainer[0], d1); drawDice(diceContainer[1], d2); setTimeout(callback, 250); }
             }, 50);
             diceRollCount++;
-            saveGame();
         }
         
         function drawDice(container, value) {
@@ -1506,43 +1588,6 @@
                     {text: `支付 ${formatMoney(amount)}`, className: 'bg-red-600', action: () => { updatePlayerMoney(player, -amount, true); nextTurn(); }},
                     {text: '抽命運卡', className: 'bg-yellow-500', action: () => { modal.classList.add('hidden'); playSound('card'); drawCard(player, chanceCards, '命運'); }}
                 ]);
-            }
-        }
-
-        // --- Save/Load Game ---
-        function saveGame() {
-            if (diceRollCount % 5 === 0) {
-                const gameState = {
-                    players: players,
-                    currentPlayerIndex: currentPlayerIndex,
-                    diceRollCount: diceRollCount,
-                    difficultyLevel: difficultyLevel
-                };
-                localStorage.setItem('liuQiuMonopolySave', JSON.stringify(gameState));
-                console.log("遊戲已自動儲存。");
-            }
-        }
-
-        function checkSavedGame() {
-            const savedGame = localStorage.getItem('liuQiuMonopolySave');
-            if (savedGame) {
-                document.getElementById('setup-screen').classList.remove('flex');
-                document.getElementById('setup-screen').classList.add('hidden');
-                showModal("繼續遊戲？", "偵測到上次的遊戲存檔。您要繼續還是開始新遊戲？", [
-                    { text: "繼續", className: 'bg-green-600', action: () => {
-                        modal.classList.add('hidden');
-                        startGame(0, '', JSON.parse(savedGame));
-                    }},
-                    { text: "新遊戲", className: 'bg-red-600', action: () => {
-                        localStorage.removeItem('liuQiuMonopolySave');
-                        modal.classList.add('hidden');
-                        setupScreen.classList.remove('hidden');
-                        setupScreen.classList.add('flex');
-                    }}
-                ], { noCloseButton: true });
-            } else {
-                setupScreen.classList.remove('hidden');
-                setupScreen.classList.add('flex');
             }
         }
 
